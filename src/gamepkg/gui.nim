@@ -9,13 +9,12 @@ randomize(now.toUnix * 1_000_000_000 + now.nanosecond)
 
 # constants
 const rowSize = 20 # How many tiles per row of the board
-const boardOffset: int = 50 # How far is the board from the top of the window
 const boxStride: int = 40 # How much space does a tile take up
 const borderWidth: float32 = 6.float32 # How wide are the borders between tiles
 const sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
-const boardLength = (boxStride+borderWidth.int) * rowSize # How long is a side of the board
 const infinity = (1.0/0.0).float32
 const averageMineCount = ((rowSize*rowSize) * 0.10).int # How many mines should be placed on average?
+const boardOffset: int = 90 # How far is the board from the top of the window
 
 type GameState = enum
   unfinished,
@@ -88,7 +87,6 @@ proc revealBoard(board: Board, tile: Tile) =
   var processed = initTable[string, bool]()
 
   while q.len > 0:
-    var skip: bool = false
     let t = q.pop()
     let k = $t.x & "," & $t.y
 
@@ -133,7 +131,11 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
   # Do search for the tile x and y coordinates using intervals
   # Return position in the set of tiles
 
-  if mouseX.float32 > boardLength or mouseY.float32 > boardLength:
+  const boardLength = (boxStride+borderWidth.int) * (rowSize - 1) # How long is a side of the board
+  if mouseX.float32 > (boardLength + borderWidth) or mouseY.float32 > (boardLength + borderWidth):
+    return -1
+
+  if mouseX < boardOffset or mouseY < boardOffset:
     return -1
 
   let x: int = board.xIntervals.binarySearch(mouseX, comparator) - 1
@@ -181,7 +183,7 @@ proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = fa
   return Tile(state: state, x: widthPos, y: heightPos, pos: boxRect)
 
 proc drawBoardWindow() =
-  DrawRectangle(boardOffset, boardOffset, boardLength, boardLength, BLACK)
+  DrawRectangle(boardOffset, boardOffset, boxStride*rowSize, boxStride*rowSize, BLACK)
 
 proc generateBoard(screenWidth: int, screenHeight: int, rowSize: int): Board =
   # Draw the initial board
@@ -341,5 +343,4 @@ proc guiLoop*() =
         drawBoard(screenWidth, screenHeight, board.get)
 
     EndDrawing()
-
   CloseWindow()
