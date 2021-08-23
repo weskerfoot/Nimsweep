@@ -143,7 +143,7 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
   return (y*rowSize) + x
 
 proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = false): Tile =
-  let edge = 1.float32
+  let edge = 1.float32 # How far from the edge is the X
   let y = boardOffset+(boxStride*heightPos)
   let x = boardOffset+(boxStride*widthPos)
 
