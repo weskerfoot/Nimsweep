@@ -9,7 +9,7 @@ randomize(now.toUnix * 1_000_000_000 + now.nanosecond)
 
 # constants
 const rowSize = 20 # How many tiles per row of the board
-const boxStride: int = 40 # How much space does a tile take up
+const boxStride: int = 40 # How much space does a tile take up, TODO make this dependent on the rowSize
 const borderWidth: float32 = 6.float32 # How wide are the borders between tiles
 const sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
 const infinity = (1.0/0.0).float32
@@ -266,6 +266,8 @@ proc guiLoop*() =
   var dragWindow = false
   var exitWindow = false
 
+  var restartButton = false
+
   var board: Option[Board] = none(Board)
   var gameState: GameState = unfinished
 
@@ -326,9 +328,12 @@ proc guiLoop*() =
     exitWindow = GuiWindowBox(Rectangle(x: 0.float32, y: 0.float32, width: screenWidth.float32, height: screenHeight.float32),
                               "#198# Minesweeper".cstring)
 
-    if board.isNone:
+    restartButton = GuiButton(Rectangle(x: boardOffset.float32-10, y: boardOffset.float32-20, width: 80.float32, height: 20.float32), "Restart")
+
+    if board.isNone or restartButton:
       # Generate the initial board if there isn't one
       board = some(generateBoard(screenWidth, screenHeight, rowSize))
+      gameState = unfinished
     else:
       if gameState == won and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
