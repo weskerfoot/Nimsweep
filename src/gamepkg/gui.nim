@@ -147,8 +147,7 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
   # Do search for the tile x and y coordinates using intervals
   # Return position in the set of tiles
 
-  const boardLength = (gameConf.boxStride+gameConf.boardOffset.int) * (gameConf.rowSize - 1) # How long is a side of the board
-  if mouseX.float32 > (boardLength + gameConf.borderWidth) or mouseY.float32 > (boardLength + gameConf.borderWidth):
+  if mouseX.float32 > board.xIntervals[^1].h or mouseY.float32 > board.yIntervals[^1].h:
     return -1
 
   if mouseX < gameConf.boardOffset or mouseY < gameConf.boardOffset:
@@ -156,6 +155,7 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
 
   let x: int = board.xIntervals.binarySearch(mouseX, comparator) - 1
   let y: int = board.yIntervals.binarySearch(mouseY, comparator) - 1
+
   return (y*gameConf.rowSize) + x
 
 proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = false): Tile =
