@@ -7,13 +7,30 @@ from times import getTime, toUnix, nanosecond
 let now = getTime()
 randomize(now.toUnix * 1_000_000_000 + now.nanosecond)
 
-# constants
-const rowSize = 15 # How many tiles per row of the board
-const boxStride: int = (900 * (1/rowSize)).int # How much space does a tile take up
-const borderWidth: float32 = 6.float32 # How wide are the borders between tiles
-const sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
-const averageMineCount = ((rowSize*rowSize) * 0.10).int # How many mines should be placed on average?
-const boardOffset: int = 90 # How far is the board from the top of the window
+type GameConfig = object
+  rowSize: int
+  boxStride: int
+  borderWidth: float32
+  sideSize: float32
+  boardOffset: int
+  averageMineCount: int
+
+proc makeConfig(rowSize: int,
+                borderWidth: float32,
+                boardOffset: int,
+                minePercentage: float32 = 0.15) : GameConfig =
+  let boxStride: int = (900 * (1/rowSize)).int # How much space does a tile take up
+  let sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
+  let averageMineCount = (rowSize*rowSize) * minePercentage.int # How many mines should be placed on average?
+
+  GameConfig(rowSize: rowSize,
+             boxStride: boxStride,
+             borderWidth: borderWidth,
+             sideSize: sideSize,
+             boardOffset: boardOffset,
+             averageMineCount: if averageMineCount > 0: averageMineCount else: 5)
+
+const gameConf = makeConfig(10, 6, 90)
 
 type GameState = enum
   unfinished,
@@ -46,11 +63,11 @@ proc isWinning(board: Board): bool =
 
 proc getTile(board: Board, x: int, y: int): Option[Tile] =
   # Given x, y coords, get tile if it exists
-  if x > (rowSize - 1) or y > (rowSize - 1) or x < 0 or y < 0:
+  if x > (gameConf.rowSize - 1) or y > (gameConf.rowSize - 1) or x < 0 or y < 0:
     return none(Tile)
 
   let l = board.tiles.len 
-  let pos = (rowSize * y) + x
+  let pos = (gameConf.rowSize * y) + x
 
   if pos >= 0 and pos < l:
     return some(board.tiles[pos])
@@ -114,7 +131,7 @@ proc revealBoard(board: Board, tile: Tile) =
         q.push(neighbour)
 
 proc setMine(numMines: int): bool =
-  let maxR: float = rowSize*rowSize
+  let maxR: float = gameConf.rowSize*gameConf.rowSize
   return rand(max_r) < (numMines.float)
 
 proc comparator(a: tuple[l: float32, h: float32], k: int): int =
@@ -130,23 +147,23 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
   # Do search for the tile x and y coordinates using intervals
   # Return position in the set of tiles
 
-  const boardLength = (boxStride+boardOffset.int) * (rowSize - 1) # How long is a side of the board
-  if mouseX.float32 > (boardLength + borderWidth) or mouseY.float32 > (boardLength + borderWidth):
+  const boardLength = (gameConf.boxStride+gameConf.boardOffset.int) * (gameConf.rowSize - 1) # How long is a side of the board
+  if mouseX.float32 > (boardLength + gameConf.borderWidth) or mouseY.float32 > (boardLength + gameConf.borderWidth):
     return -1
 
-  if mouseX < boardOffset or mouseY < boardOffset:
+  if mouseX < gameConf.boardOffset or mouseY < gameConf.boardOffset:
     return -1
 
   let x: int = board.xIntervals.binarySearch(mouseX, comparator) - 1
   let y: int = board.yIntervals.binarySearch(mouseY, comparator) - 1
-  return (y*rowSize) + x
+  return (y*gameConf.rowSize) + x
 
 proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = false): Tile =
   let edge = 1.float32 # How far from the edge is the X
-  let y = boardOffset+(boxStride*heightPos)
-  let x = boardOffset+(boxStride*widthPos)
+  let y = gameConf.boardOffset+(gameConf.boxStride*heightPos)
+  let x = gameConf.boardOffset+(gameConf.boxStride*widthPos)
 
-  let boxRect = Rectangle(x: x.float32, y: y.float32, width: sideSize, height: sideSize)
+  let boxRect = Rectangle(x: x.float32, y: y.float32, width: gameConf.sideSize, height: gameConf.sideSize)
 
   let c1 = Color(r: 2, g: 91, b: 36, a: 255)
   let c2 = Color(r: 0, g: 0, b: 0, a: 255)
@@ -158,7 +175,7 @@ proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = fa
   elif state.revealed:
     DrawRectangleRec(boxRect, GREEN)
     if state.mineNeighbours > 0:
-      DrawText($state.mineNeighbours, x+(sideSize/4).int, y, sideSize.int, BLACK)
+      DrawText($state.mineNeighbours, x+(gameConf.sideSize/4).int, y, gameConf.sideSize.int, BLACK)
 
   # show everything if `reveal` is true
   elif reveal:
@@ -167,12 +184,12 @@ proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = fa
     DrawRectangleGradientEx(boxRect, c1, c2, c3, c4)
 
   let start1 = Vector2(x: x.float32+edge, y: y.float32+edge)
-  let end1 = Vector2(x: (x+boxStride).float32-borderWidth-edge, y: (y+boxStride).float32-borderWidth-edge)
+  let end1 = Vector2(x: (x+gameConf.boxStride).float32-gameConf.borderWidth-edge, y: (y+gameConf.boxStride).float32-gameConf.borderWidth-edge)
 
   let start2 = Vector2(x: (x).float32+edge,
-                       y: (y+boxStride).float32-borderWidth-edge)
+                       y: (y+gameConf.boxStride).float32-gameConf.borderWidth-edge)
 
-  let end2 = Vector2(x: (x+boxStride).float32-borderWidth-edge,
+  let end2 = Vector2(x: (x+gameConf.boxStride).float32-gameConf.borderWidth-edge,
                      y: y.float32+edge)
 
   if state.marked:
@@ -182,7 +199,7 @@ proc drawTile(heightPos: int, widthPos: int, state: TileState, reveal: bool = fa
   return Tile(state: state, x: widthPos, y: heightPos, pos: boxRect)
 
 proc drawBoardWindow() =
-  DrawRectangle(boardOffset, boardOffset, boxStride*rowSize, boxStride*rowSize, BLACK)
+  DrawRectangle(gameConf.boardOffset, gameConf.boardOffset, gameConf.boxStride*gameConf.rowSize, gameConf.boxStride*gameConf.rowSize, BLACK)
 
 proc generateBoard(screenWidth: int, screenHeight: int, rowSize: int): Board =
   # Draw the initial board
@@ -199,7 +216,7 @@ proc generateBoard(screenWidth: int, screenHeight: int, rowSize: int): Board =
 
       state.marked = false
       state.revealed = false
-      state.mine = setMine(averageMineCount) # average number of mines
+      state.mine = setMine(gameConf.averageMineCount) # average number of mines
       state.mineNeighbours = 0
 
       let tile = drawTile(heightPos, widthPos, state)
@@ -293,7 +310,7 @@ proc guiLoop*() =
             if not tile.state.marked:
               revealBoard(board.get, tile)
 
-      if isWinning(board.get):
+      if isWinning(board.get) and gameState != lost:
         gameState = won
 
     if IsMouseButtonPressed(MOUSE_RIGHT_BUTTON):
@@ -321,20 +338,20 @@ proc guiLoop*() =
     exitWindow = GuiWindowBox(Rectangle(x: 0.float32, y: 0.float32, width: screenWidth.float32, height: screenHeight.float32),
                               "#198# Minesweeper".cstring)
 
-    restartButton = GuiButton(Rectangle(x: boardOffset.float32-10, y: boardOffset.float32-20, width: 80.float32, height: 20.float32), "Restart")
+    restartButton = GuiButton(Rectangle(x: gameConf.boardOffset.float32-10, y: gameConf.boardOffset.float32-20, width: 80.float32, height: 20.float32), "Restart")
 
     if board.isNone or restartButton:
       # Generate the initial board if there isn't one
-      board = some(generateBoard(screenWidth, screenHeight, rowSize))
+      board = some(generateBoard(screenWidth, screenHeight, gameConf.rowSize))
       gameState = unfinished
     else:
       if gameState == won and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
-        DrawText("You won! :)", (screenWidth.float32/2.5).int, (boardOffset/2).int, 30, GREEN)
+        DrawText("You won! :)", (screenWidth.float32/2.5).int, (gameConf.boardOffset/2).int, 30, GREEN)
 
       elif gameState == lost and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
-        DrawText("You lost! :(", (screenWidth.float32/2.5).int, (boardOffset/2).int, 30, RED)
+        DrawText("You lost! :(", (screenWidth.float32/2.5).int, (gameConf.boardOffset/2).int, 30, RED)
 
       # Otherwise update the state of the abstract board with the window
       else:
