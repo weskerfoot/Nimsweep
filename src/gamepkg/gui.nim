@@ -8,11 +8,10 @@ let now = getTime()
 randomize(now.toUnix * 1_000_000_000 + now.nanosecond)
 
 # constants
-const rowSize = 20 # How many tiles per row of the board
-const boxStride: int = 40 # How much space does a tile take up, TODO make this dependent on the rowSize
+const rowSize = 15 # How many tiles per row of the board
+const boxStride: int = (900 * (1/rowSize)).int # How much space does a tile take up
 const borderWidth: float32 = 6.float32 # How wide are the borders between tiles
 const sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
-const infinity = (1.0/0.0).float32
 const averageMineCount = ((rowSize*rowSize) * 0.10).int # How many mines should be placed on average?
 const boardOffset: int = 90 # How far is the board from the top of the window
 
@@ -131,7 +130,7 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
   # Do search for the tile x and y coordinates using intervals
   # Return position in the set of tiles
 
-  const boardLength = (boxStride+borderWidth.int) * (rowSize - 1) # How long is a side of the board
+  const boardLength = (boxStride+boardOffset.int) * (rowSize - 1) # How long is a side of the board
   if mouseX.float32 > (boardLength + borderWidth) or mouseY.float32 > (boardLength + borderWidth):
     return -1
 
@@ -219,8 +218,10 @@ proc generateBoard(screenWidth: int, screenHeight: int, rowSize: int): Board =
       yIntervals &= @[(l: 0.float32, h: tiles[tiles.high].pos.y.float32)]
 
   # Required for fencepost cases
-  xIntervals &= (l: xIntervals[xIntervals.high].h, h: infinity)
-  yIntervals &= (l: yIntervals[yIntervals.high].h, h: infinity)
+  let lastXInterval = xIntervals[xIntervals.high]
+  let lastYInterval = xIntervals[xIntervals.high]
+  xIntervals &= (l: lastXInterval.h, h: lastXInterval.h + tiles[0].pos.width)
+  yIntervals &= (l: lastYInterval.h, h: lastYInterval.h + tiles[0].pos.height)
 
   result = Board(tiles: tiles, xIntervals: xIntervals, yIntervals: yIntervals)
 
@@ -256,8 +257,6 @@ proc guiLoop*() =
   MaximizeWindow()
 
   GuiLoadStyle("styles/terminal/terminal.rgs")
-  #echo GetScreenWidth()
-  #echo GetScreenHeight()
 
   var mousePos = Vector2(x: 0, y: 0)
   var windowPos = Vector2(x: screenWidth.float32, y: screenHeight.float32)
@@ -286,21 +285,15 @@ proc guiLoop*() =
       else:
         # Check if we're clicking a minefield tile
         if board.isSome and gameState == unfinished:
-          echo isWinning(board.get)
           let tilePos = getTilePos(mousePos.x.int, mousePos.y.int, board.get) # TODO make this take vector2 instead ?
           if tilePos >= 0:
             let tile = board.get.tiles[tilePos]
             if tile.state.mine and not tile.state.marked:
-              echo "boom!"
               gameState = lost
-            if tile.state.marked:
-              echo "do nothing"
-            else:
-              echo "reveal it"
+            if not tile.state.marked:
               revealBoard(board.get, tile)
 
       if isWinning(board.get):
-        echo "You won!"
         gameState = won
 
     if IsMouseButtonPressed(MOUSE_RIGHT_BUTTON):
@@ -337,11 +330,11 @@ proc guiLoop*() =
     else:
       if gameState == won and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
-        DrawText("You won!", (screenWidth/2).int, (screenHeight/2).int, 30, GREEN)
+        DrawText("You won! :)", (screenWidth.float32/2.5).int, (boardOffset/2).int, 30, GREEN)
 
       elif gameState == lost and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
-        DrawText("You lost! :(", (screenWidth/2).int, (screenHeight/2).int, 30, RED)
+        DrawText("You lost! :(", (screenWidth.float32/2.5).int, (boardOffset/2).int, 30, RED)
 
       # Otherwise update the state of the abstract board with the window
       else:
