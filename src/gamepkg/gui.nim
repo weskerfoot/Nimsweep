@@ -7,18 +7,22 @@ from times import getTime, toUnix, nanosecond
 let now = getTime()
 randomize(now.toUnix * 1_000_000_000 + now.nanosecond)
 
+const borderWidth = 6
+const boardOffset = 70
+
 type GameConfig = object
   rowSize: int
   boxStride: int
   borderWidth: float32
   sideSize: float32
   boardOffset: int
+  minePercentage: float32
   averageMineCount: int
 
 proc makeConfig(rowSize: int,
                 borderWidth: float32,
                 boardOffset: int,
-                minePercentage: float32 = 0.10) : GameConfig =
+                minePercentage: float32 = 0.05) : GameConfig =
   let boxStride: int = (950 * (1/rowSize)).int # How much space does a tile take up
   let sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
   let averageMineCount = ((rowSize*rowSize).float32 * minePercentage) # How many mines should be placed on average?
@@ -28,9 +32,10 @@ proc makeConfig(rowSize: int,
              borderWidth: borderWidth,
              sideSize: sideSize,
              boardOffset: boardOffset,
+             minePercentage: minePercentage,
              averageMineCount: averageMineCount.int)
 
-const gameConf = makeConfig(20, 6, 70)
+var gameConf: GameConfig # = makeConfig(20, 6, 70)
 
 type GameState = enum
   unfinished,
@@ -131,7 +136,7 @@ proc revealBoard(board: Board, tile: Tile) =
         q.push(neighbour)
 
 proc setMine(numMines: int): bool =
-  let maxR: float = gameConf.rowSize*gameConf.rowSize
+  let maxR: float = (gameConf.rowSize*gameConf.rowSize).float
   return rand(max_r) < (numMines.float)
 
 proc comparator(a: tuple[l: float32, h: float32], k: int): int =
@@ -219,14 +224,13 @@ proc generateBoard(screenWidth: int, screenHeight: int, rowSize: int): Board =
 
       state.marked = false
       state.revealed = false
-      state.mine = setMine(gameConf.averageMineCount) # average number of mines
+      state.mine = setMine(gameConf.averageMineCount)
       state.mineNeighbours = 0
 
       let tile = drawTile(heightPos, widthPos, state)
 
       tiles &= @[tile]
 
-      # FIXME ugly shit, encapsulate it into a function or make it more terse
       if xIntervals.len > 0:
         xIntervals &= @[(l: xIntervals[xIntervals.high].h, h: tile.pos.x.float32)]
       else:
@@ -259,6 +263,9 @@ proc showBoard(screenWidth: int, screenHeight: int, board: Board) =
 proc guiLoop*() =
 
   echo "gui loop starting"
+
+  var minePercentage = 0.10
+  var rowSize = 20
 
   # TODO get from xlib
   var screenWidth: int = 100
@@ -293,6 +300,7 @@ proc guiLoop*() =
   SetTargetFPS(60)
 
   while not exitWindow and not WindowShouldClose():
+    gameConf = makeConfig(rowSize=rowSize, borderWidth=6, boardOffset=70, minePercentage=minePercentage)
     screenWidth = (monitor.GetMonitorWidth()).int
     screenHeight = (monitor.GetMonitorHeight()).int
     mousePos = GetMousePosition()
@@ -341,20 +349,42 @@ proc guiLoop*() =
     exitWindow = GuiWindowBox(Rectangle(x: 0.float32, y: 0.float32, width: screenWidth.float32, height: screenHeight.float32),
                               "#198# Minesweeper".cstring)
 
-    restartButton = GuiButton(Rectangle(x: gameConf.boardOffset.float32-10, y: gameConf.boardOffset.float32-20, width: 80.float32, height: 20.float32), "Restart")
+    restartButton = GuiButton(Rectangle(x: gameConf.boardOffset.float32-10, y: gameConf.boardOffset.float32-30, width: 80.float32, height: 20.float32), "Restart")
 
-    if board.isNone or restartButton:
+    minePercentage = GuiSliderBar(Rectangle(
+                                    x: gameConf.boardOffset.float32+250,
+                                    y: gameConf.boardOffset.float32-30,
+                                    width: 80.float32,
+                                    height: 20.float32),
+                                  "Easier",
+                                  "Harder",
+                                  minePercentage,
+                                  0.01, 0.50)
+
+
+    rowSize = GuiSliderBar(Rectangle(
+                                    x: gameConf.boardOffset.float32+650,
+                                    y: gameConf.boardOffset.float32-30,
+                                    width: 80.float32,
+                                    height: 20.float32),
+                                  "Smaller",
+                                  "Larger",
+                                  rowSize.float,
+                                  10, 50).int
+
+    if board.isNone or restartButton or rowSize != gameConf.rowSize or minePercentage != gameConf.minePercentage:
       # Generate the initial board if there isn't one
+      gameConf = makeConfig(rowSize=rowSize, borderWidth=borderWidth, boardOffset=boardOffset, minePercentage=minePercentage)
       board = some(generateBoard(screenWidth, screenHeight, gameConf.rowSize))
       gameState = unfinished
     else:
       if gameState == won and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
-        DrawText("You won! :)", (screenWidth.float32/2.5).int, (gameConf.boardOffset/2).int, 30, GREEN)
+        DrawText("You won! :)", (screenWidth.float32/1.5).int, (gameConf.boardOffset).int, 30, GREEN)
 
       elif gameState == lost and board.isSome:
         showBoard(screenWidth, screenHeight, board.get)
-        DrawText("You lost! :(", (screenWidth.float32/2.5).int, (gameConf.boardOffset/2).int, 30, RED)
+        DrawText("You lost! :(", (screenWidth.float32/1.5).int, (gameConf.boardOffset).int, 30, RED)
 
       # Otherwise update the state of the abstract board with the window
       else:
