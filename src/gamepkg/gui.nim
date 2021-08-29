@@ -18,19 +18,19 @@ type GameConfig = object
 proc makeConfig(rowSize: int,
                 borderWidth: float32,
                 boardOffset: int,
-                minePercentage: float32 = 0.15) : GameConfig =
-  let boxStride: int = (900 * (1/rowSize)).int # How much space does a tile take up
+                minePercentage: float32 = 0.10) : GameConfig =
+  let boxStride: int = (950 * (1/rowSize)).int # How much space does a tile take up
   let sideSize = (boxStride-borderWidth.int).float32 # How long is a side of a tile
-  let averageMineCount = (rowSize*rowSize) * minePercentage.int # How many mines should be placed on average?
+  let averageMineCount = ((rowSize*rowSize).float32 * minePercentage) # How many mines should be placed on average?
 
   GameConfig(rowSize: rowSize,
              boxStride: boxStride,
              borderWidth: borderWidth,
              sideSize: sideSize,
              boardOffset: boardOffset,
-             averageMineCount: if averageMineCount > 0: averageMineCount else: 5)
+             averageMineCount: averageMineCount.int)
 
-const gameConf = makeConfig(10, 6, 90)
+const gameConf = makeConfig(20, 6, 70)
 
 type GameState = enum
   unfinished,
@@ -146,6 +146,9 @@ proc getTilePos(mouseX: int, mouseY: int, board: Board): int =
   # Take x, y coordinates of cursor
   # Do search for the tile x and y coordinates using intervals
   # Return position in the set of tiles
+  
+  assert(board.xIntervals.len > 0)
+  assert(board.yIntervals.len > 0)
 
   if mouseX.float32 > board.xIntervals[^1].h or mouseY.float32 > board.yIntervals[^1].h:
     return -1
